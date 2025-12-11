@@ -5,20 +5,14 @@ import bg from "../assets/bgimg.png";
 export default function LayoutProfile() {
   return (
     <div
-      className="Profile-container"
-      backgroundImage={`url(${bg})`}
+      className="min-h-screen w-full"
     >
-      {/* <div className="Profile-overlay" /> */}
-
       <Navbar />
-    
-    
 
-
-      {/* <main className="page-main"> */}
+      {/* Page Content */}
+      <div className="pt-2">
         <Outlet />
-      {/* </main> */}
-      
+      </div>
     </div>
   );
 }

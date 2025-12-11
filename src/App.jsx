@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Signup from "./pages/Signup";
 import Signin from "./pages/Signin";
-import Profile from "./pages/Profile";
+// import Profile from "./pages/Profile";
+import Profile from "./pages/Dashboards/FleetManagerDashboard";
 import Layout from "./components/Layout";
 import LayoutProfile from "./components/LayoutProfile";
 function App() {
