@@ -1,3 +1,4 @@
+// React Router and Authentication
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -8,6 +9,7 @@ import { ROLES } from './utils/authUtils';
 // Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Booking from './pages/Booking';
 import Unauthorized from './pages/Unauthorized';
 
 // Dashboards
@@ -79,6 +81,19 @@ function App() {
                   <div>
                     <Navbar />
                     <CustomerDashboard />
+                  </div>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Protected Booking route */}
+            <Route
+              path="/booking"
+              element={
+                <ProtectedRoute allowedRoles={[ROLES.CUSTOMER]}>
+                  <div>
+                    <Navbar />
+                    <Booking />
                   </div>
                 </ProtectedRoute>
               }

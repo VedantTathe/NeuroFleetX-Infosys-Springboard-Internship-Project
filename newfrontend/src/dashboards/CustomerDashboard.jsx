@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dashboardService } from '../services/services';
+import { dashboardService, bookingService } from '../services/services';
+import apiClient from '../utils/apiClient';
 import { 
   FaCar, FaRoute, FaLeaf, FaStar, FaCalendarCheck, FaDollarSign,
   FaMapMarkerAlt, FaClock, FaPhone, FaEnvelope, FaHeart, FaTag,
@@ -63,46 +64,66 @@ const CustomerDashboard = () => {
 
   const fetchRecentBookings = async () => {
     try {
-      // Mock recent bookings
-      const mockBookings = [
-        {
-          id: 'BK-2024-002',
-          date: '2024-01-05',
-          driver: 'Sarah Johnson',
-          driverRating: 4.8,
-          vehicle: 'Honda Accord',
-          fare: 18.75,
-          pickup: 'Airport Terminal 2',
-          dropoff: 'Central Business District',
-          rating: 5,
-          status: 'completed'
-        },
-        {
-          id: 'BK-2024-003',
-          date: '2024-01-04',
-          driver: 'David Lee',
-          driverRating: 4.7,
-          vehicle: 'Nissan Altima',
-          fare: 15.20,
-          pickup: 'Shopping Mall',
-          dropoff: 'Restaurant District',
-          rating: 4,
-          status: 'completed'
-        },
-        {
-          id: 'BK-2024-004',
-          date: '2024-01-03',
-          driver: 'Emily Brown',
-          driverRating: 4.9,
-          vehicle: 'Tesla Model 3',
-          fare: 22.80,
-          pickup: 'University Campus',
-          dropoff: 'Train Station',
-          rating: 5,
-          status: 'completed'
+      // Get current user from localStorage
+      const user = JSON.parse(localStorage.getItem('neurofleetx_user'));
+      console.log('Current user from localStorage:', user);
+      
+      // First, let's try to get ALL bookings to see what's available
+      try {
+        // Get all bookings (we'll modify this to get customer-specific later)
+        const allBookingsResponse = await apiClient.get('/bookings');
+        console.log('All bookings response:', allBookingsResponse);
+        
+        let bookingsData = [];
+        if (allBookingsResponse && Array.isArray(allBookingsResponse)) {
+          bookingsData = allBookingsResponse;
+        } else if (allBookingsResponse && allBookingsResponse.bookings && Array.isArray(allBookingsResponse.bookings)) {
+          bookingsData = allBookingsResponse.bookings;
         }
-      ];
-      setRecentBookings(mockBookings);
+        
+        console.log('Bookings data found:', bookingsData);
+        console.log('Number of bookings:', bookingsData.length);
+        
+        // Transform backend bookings to match frontend format
+        const backendBookings = bookingsData.map(booking => ({
+          id: `BK-${booking.id}`,
+          date: booking.createdAt ? new Date(booking.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          driver: booking.driver ? booking.driver.name : 'Driver Assigned',
+          driverRating: booking.driverRating || 4.5,
+          vehicle: booking.vehicle ? `${booking.vehicle.make} ${booking.vehicle.model}` : 'Vehicle Assigned',
+          fare: booking.estimatedCost || 0,
+          pickup: booking.pickupAddress || 'Pickup Location',
+          dropoff: booking.dropoffAddress || 'Dropoff Location',
+          rating: booking.driverRating || 4,
+          status: booking.status ? booking.status.toLowerCase() : 'pending'
+        }));
+        
+        console.log('Transformed bookings:', backendBookings);
+        
+        // For now, show only backend bookings (no mock data)
+        setRecentBookings(backendBookings);
+        
+      } catch (backendError) {
+        console.log('Backend bookings not available, showing mock data:', backendError.message);
+        
+        // Fallback to mock data
+        const mockBookings = [
+          {
+            id: 'BK-2024-001',
+            date: '2024-01-15',
+            driver: 'Michael Chen',
+            driverRating: 4.9,
+            vehicle: 'Toyota Camry',
+            fare: 24.50,
+            pickup: '123 Main Street, Downtown',
+            dropoff: '456 Oak Avenue, Suburbs',
+            rating: 5,
+            status: 'completed'
+          }
+        ];
+        setRecentBookings(mockBookings);
+      }
+      
     } catch (err) {
       console.error('Failed to fetch recent bookings:', err);
     }

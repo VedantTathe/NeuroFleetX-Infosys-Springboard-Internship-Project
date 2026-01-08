@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { dashboardService } from '../services/services';
+import { dashboardService, vehicleService } from '../services/services';
+import VehicleForm from '../components/VehicleForm';
 import { 
   FaTruck, FaUsers, FaRoute, FaCheckCircle, FaDollarSign, FaChartLine,
   FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaDownload, FaEye,
@@ -13,6 +14,8 @@ const FleetManagerDashboard = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showVehicleForm, setShowVehicleForm] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState(null);
 
   useEffect(() => {
     fetchMetrics();
@@ -30,67 +33,80 @@ const FleetManagerDashboard = () => {
 
   const fetchVehicles = async () => {
     try {
-      // Mock vehicle data
-      const mockVehicles = [
-        {
-          id: 1,
-          name: 'Truck 001',
-          type: 'Truck',
-          status: 'active',
-          driver: 'John Doe',
-          location: 'Downtown',
-          fuel: 75,
-          battery: null,
-          lastMaintenance: '2024-12-01',
-          nextMaintenance: '2025-01-15',
-          revenue: 2450
-        },
-        {
-          id: 2,
-          name: 'Van 002',
-          type: 'Van',
-          status: 'idle',
-          driver: 'Jane Smith',
-          location: 'Airport',
-          fuel: 45,
-          battery: null,
-          lastMaintenance: '2024-11-15',
-          nextMaintenance: '2025-01-01',
-          revenue: 1890
-        },
-        {
-          id: 3,
-          name: 'EV Car 003',
-          type: 'Car',
-          status: 'maintenance',
-          driver: 'Mike Johnson',
-          location: 'Service Center',
-          fuel: null,
-          battery: 20,
-          lastMaintenance: '2024-12-20',
-          nextMaintenance: '2025-01-05',
-          revenue: 1230
-        },
-        {
-          id: 4,
-          name: 'Bike 004',
-          type: 'Bike',
-          status: 'active',
-          driver: 'Sarah Wilson',
-          location: 'University',
-          fuel: null,
-          battery: 85,
-          lastMaintenance: '2024-11-30',
-          nextMaintenance: '2025-01-10',
-          revenue: 890
-        }
-      ];
-      setVehicles(mockVehicles);
+      const response = await vehicleService.getAllVehicles();
+      console.log('Backend response:', response);
+      
+      // Handle different response formats
+      let vehiclesData = [];
+      if (Array.isArray(response)) {
+        vehiclesData = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        vehiclesData = response.data;
+      } else if (response && response.vehicles && Array.isArray(response.vehicles)) {
+        vehiclesData = response.vehicles;
+      }
+      
+      // Transform backend data to match frontend format
+      const transformedVehicles = vehiclesData.map(vehicle => ({
+        id: vehicle.id,
+        name: vehicle.make && vehicle.model ? `${vehicle.make} ${vehicle.model}` : 'Unknown Vehicle',
+        type: vehicle.type ? vehicle.type.toLowerCase() : 'sedan',
+        status: vehicle.isAvailable !== undefined ? (vehicle.isAvailable ? 'active' : 'idle') : 'idle',
+        driver: vehicle.driverId || 'Unassigned',
+        location: 'Garage',
+        fuel: vehicle.currentFuelLevel || 50,
+        battery: vehicle.batteryLevel || 75,
+        lastMaintenance: vehicle.lastMaintenanceDate || '2024-01-01',
+        nextMaintenance: '2025-01-01',
+        revenue: Math.floor(Math.random() * 1000) + 1000
+      }));
+      
+      console.log('Transformed vehicles:', transformedVehicles);
+      setVehicles(transformedVehicles);
     } catch (err) {
       console.error('Failed to fetch vehicles:', err);
+      setError(err.message || 'Failed to fetch vehicles');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddVehicle = () => {
+    setEditingVehicle(null);
+    setShowVehicleForm(true);
+  };
+
+  const handleEditVehicle = (vehicle) => {
+    setEditingVehicle(vehicle);
+    setShowVehicleForm(true);
+  };
+
+  const handleSaveVehicle = async (vehicleData) => {
+    try {
+      if (editingVehicle) {
+        // Update existing vehicle
+        await vehicleService.updateVehicle(editingVehicle.id, vehicleData);
+        console.log('Vehicle updated successfully');
+      } else {
+        // Create new vehicle
+        await vehicleService.createVehicle(vehicleData);
+        console.log('Vehicle created successfully');
+      }
+      
+      // Close modal and refresh list
+      setShowVehicleForm(false);
+      setEditingVehicle(null);
+      fetchVehicles();
+      
+    } catch (error) {
+      console.error('Failed to save vehicle:', error);
+      alert(error.message || 'Failed to save vehicle');
+    }
+  };
+
+  const handleCloseForm = () => {
+    setShowVehicleForm(false);
+    setEditingVehicle(null);
   };
 
   // Mock metrics data
@@ -145,7 +161,7 @@ const FleetManagerDashboard = () => {
     );
   };
 
-  const VehicleCard = ({ vehicle }) => {
+  const VehicleCard = ({ vehicle, onEdit }) => {
     const getStatusColor = (status) => {
       switch (status) {
         case 'active': return 'bg-green-100 text-green-800';
@@ -233,7 +249,7 @@ const FleetManagerDashboard = () => {
             <FaEye className="inline mr-1" />
             View
           </button>
-          <button className="flex-1 px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors">
+          <button onClick={() => onEdit(vehicle)} className="flex-1 px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors">
             <FaEdit className="inline mr-1" />
             Edit
           </button>
@@ -268,7 +284,7 @@ const FleetManagerDashboard = () => {
               <h1 className="text-2xl font-bold text-gray-900">Fleet Manager Dashboard</h1>
               <p className="text-gray-600">Manage your vehicles and operations</p>
             </div>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+            <button onClick={handleAddVehicle} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
               <FaPlus className="inline mr-2" />
               Add Vehicle
             </button>
@@ -367,7 +383,7 @@ const FleetManagerDashboard = () => {
           {/* Vehicles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {(filteredVehicles || []).map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} />
+              <VehicleCard key={vehicle.id} vehicle={vehicle} onEdit={handleEditVehicle} />
             ))}
           </div>
 
@@ -380,6 +396,15 @@ const FleetManagerDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Vehicle Form Modal */}
+      {showVehicleForm && (
+        <VehicleForm
+          vehicle={editingVehicle}
+          onSave={handleSaveVehicle}
+          onCancel={handleCloseForm}
+        />
+      )}
     </div>
   );
 };

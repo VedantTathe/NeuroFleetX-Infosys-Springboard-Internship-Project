@@ -137,3 +137,129 @@ export const userService = {
     }
   },
 };
+
+// Vehicle Services
+export const vehicleService = {
+  // Get all vehicles
+  getAllVehicles: async () => {
+    try {
+      const response = await apiClient.get('/vehicles');
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to fetch vehicles' };
+    }
+  },
+
+  // Get vehicle by ID
+  getVehicleById: async (id) => {
+    try {
+      const response = await apiClient.get(`/vehicles/${id}`);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to fetch vehicle' };
+    }
+  },
+
+  // Create new vehicle
+  createVehicle: async (vehicleData) => {
+    try {
+      const response = await apiClient.post('/vehicles', vehicleData);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to create vehicle' };
+    }
+  },
+
+  // Update vehicle
+  updateVehicle: async (id, vehicleData) => {
+    try {
+      const response = await apiClient.put(`/vehicles/${id}`, vehicleData);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to update vehicle' };
+    }
+  },
+
+  // Delete vehicle
+  deleteVehicle: async (id) => {
+    try {
+      const response = await apiClient.delete(`/vehicles/${id}`);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to delete vehicle' };
+    }
+  },
+
+  // Get vehicles by type
+  getVehiclesByType: async (type) => {
+    try {
+      const response = await apiClient.get(`/vehicles/type/${type}`);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to fetch vehicles by type' };
+    }
+  },
+
+  // Get available vehicles
+  getAvailableVehicles: async () => {
+    try {
+      const response = await apiClient.get('/vehicles/available');
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to fetch available vehicles' };
+    }
+  }
+};
+
+// Booking Services
+export const bookingService = {
+  // Get vehicle recommendations
+  getRecommendations: async (criteria) => {
+    try {
+      const response = await apiClient.post('/bookings/recommendations', criteria);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to get recommendations' };
+    }
+  },
+
+  // Create a new booking
+  createBooking: async (bookingData) => {
+    try {
+      const response = await apiClient.post('/bookings', bookingData);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to create booking' };
+    }
+  },
+
+  // Get bookings by customer
+  getCustomerBookings: async (customerId) => {
+    try {
+      const response = await apiClient.get(`/bookings/customer/${customerId}`);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to fetch bookings' };
+    }
+  },
+
+  // Get booking by ID
+  getBookingById: async (bookingId) => {
+    try {
+      const response = await apiClient.get(`/bookings/${bookingId}`);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to fetch booking' };
+    }
+  },
+
+  // Cancel booking
+  cancelBooking: async (bookingId) => {
+    try {
+      const response = await apiClient.put(`/bookings/${bookingId}/cancel`);
+      return response;
+    } catch (error) {
+      throw error.response?.data || { message: 'Failed to cancel booking' };
+    }
+  },
+};
