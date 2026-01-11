@@ -1,412 +1,286 @@
+
 import React, { useState, useEffect } from 'react';
-import { dashboardService, vehicleService } from '../services/services';
-import VehicleForm from '../components/VehicleForm';
+import UserMap from '../components/UserMap';
+import { optimizeFleetLoad } from '../services/AiEngine';
 import { 
-  FaTruck, FaUsers, FaRoute, FaCheckCircle, FaDollarSign, FaChartLine,
-  FaPlus, FaEdit, FaTrash, FaSearch, FaFilter, FaDownload, FaEye,
-  FaClock, FaMapMarkerAlt, FaGasPump, FaWrench
+  FaTruck, FaMapMarkedAlt, FaMagic, FaPlus, FaTrash, FaBalanceScale, 
+  FaBatteryThreeQuarters, FaThermometerHalf, FaTachometerAlt, FaSatellite 
 } from 'react-icons/fa';
 
 const FleetManagerDashboard = () => {
-  const [metrics, setMetrics] = useState(null);
-  const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [showVehicleForm, setShowVehicleForm] = useState(false);
-  const [editingVehicle, setEditingVehicle] = useState(null);
+  // --- INITIAL DATA ---
+  const MOCK_VEHICLES = [
+    { 
+      id: 1, name: "Tesla Semi A1", plate: "MH-12-AB-1234", status: "Active", 
+      capacity: 95, location: { lat: 18.5204, lng: 73.8567 }, 
+      battery: 88, temp: 65, speed: 45 
+    },
+    { 
+      id: 2, name: "Tata Ace X2", plate: "MH-14-XY-9876", status: "Active", 
+      capacity: 15, location: { lat: 19.0760, lng: 72.8777 }, 
+      battery: 45, temp: 82, speed: 30 
+    },
+    { 
+      id: 3, name: "Eicher Pro Z3", plate: "KA-01-ZZ-5555", status: "Maintenance", 
+      capacity: 0, location: { lat: 12.9716, lng: 77.5946 }, 
+      battery: 12, temp: 110, speed: 0 
+    },
+    { 
+      id: 4, name: "Ashok Leyland", plate: "TS-09-QQ-1111", status: "Idle", 
+      capacity: 0, location: { lat: 17.3850, lng: 78.4867 }, 
+      battery: 100, temp: 40, speed: 0 
+    }
+  ];
 
+  const [vehicles, setVehicles] = useState(MOCK_VEHICLES);
+  const [currentMapLocation, setCurrentMapLocation] = useState({ lat: 20.5937, lng: 78.9629 });
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [newVehicle, setNewVehicle] = useState({ name: '', plate: '', status: 'Active' });
+
+  // --- AUTOMATIC SIMULATION ENGINE (RUNS ALWAYS) ---
   useEffect(() => {
-    fetchMetrics();
-    fetchVehicles();
+    const interval = setInterval(() => {
+      setVehicles(currentVehicles => 
+        currentVehicles.map(v => {
+          // Logic: Only 'Active' vehicles move and consume resources
+          if (v.status === 'Active') {
+            return {
+              ...v,
+              // Move coordinates slightly (Simulating GPS movement)
+              location: {
+                lat: v.location.lat + (Math.random() - 0.5) * 0.002,
+                lng: v.location.lng + (Math.random() - 0.5) * 0.002
+              },
+              // Randomize Live Telemetry
+              speed: Math.floor(Math.random() * 40) + 30, // 30-70 km/h
+              temp: Math.min(130, Math.max(60, v.temp + (Math.random() - 0.5) * 3)), // Fluctuating Temp
+              battery: Math.max(0, v.battery - 0.05) // Slow battery drain
+            };
+          } else {
+            // Idle or Maintenance vehicles stay still
+            return { 
+                ...v, 
+                speed: 0,
+                temp: Math.max(30, v.temp - 0.5) // Cooling down
+            };
+          }
+        })
+      );
+    }, 1000); // Updates every second
+
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchMetrics = async () => {
-    try {
-      const data = await dashboardService.getFleetManagerMetrics();
-      setMetrics(data);
-    } catch (err) {
-      console.error('Failed to fetch metrics:', err);
-    }
+  // --- MODULE 3: LOAD OPTIMIZATION ---
+  const handleLoadBalance = () => {
+      setIsOptimizing(true);
+      setTimeout(() => {
+        const optimized = optimizeFleetLoad(vehicles);
+        setVehicles(optimized);
+        setIsOptimizing(false);
+        alert("✅ Fleet Load Redistributed efficiently.");
+      }, 800);
   };
 
-  const fetchVehicles = async () => {
-    try {
-      const response = await vehicleService.getAllVehicles();
-      console.log('Backend response:', response);
-      
-      // Handle different response formats
-      let vehiclesData = [];
-      if (Array.isArray(response)) {
-        vehiclesData = response;
-      } else if (response && response.data && Array.isArray(response.data)) {
-        vehiclesData = response.data;
-      } else if (response && response.vehicles && Array.isArray(response.vehicles)) {
-        vehiclesData = response.vehicles;
-      }
-      
-      // Transform backend data to match frontend format
-      const transformedVehicles = vehiclesData.map(vehicle => ({
-        id: vehicle.id,
-        name: vehicle.make && vehicle.model ? `${vehicle.make} ${vehicle.model}` : 'Unknown Vehicle',
-        type: vehicle.type ? vehicle.type.toLowerCase() : 'sedan',
-        status: vehicle.isAvailable !== undefined ? (vehicle.isAvailable ? 'active' : 'idle') : 'idle',
-        driver: vehicle.driverId || 'Unassigned',
-        location: 'Garage',
-        fuel: vehicle.currentFuelLevel || 50,
-        battery: vehicle.batteryLevel || 75,
-        lastMaintenance: vehicle.lastMaintenanceDate || '2024-01-01',
-        nextMaintenance: '2025-01-01',
-        revenue: Math.floor(Math.random() * 1000) + 1000
-      }));
-      
-      console.log('Transformed vehicles:', transformedVehicles);
-      setVehicles(transformedVehicles);
-    } catch (err) {
-      console.error('Failed to fetch vehicles:', err);
-      setError(err.message || 'Failed to fetch vehicles');
-    } finally {
-      setLoading(false);
-    }
+  // --- CRUD ACTIONS ---
+  const handleSaveVehicle = () => {
+      // New vehicles are automatically picked up by the useEffect loop above
+      const vehicle = {
+          ...newVehicle,
+          id: Date.now(),
+          capacity: 0,
+          location: { lat: 18.5204, lng: 73.8567 }, // Default start
+          battery: 100, temp: 60, speed: 0
+      };
+      setVehicles([...vehicles, vehicle]);
+      setShowModal(false);
+      setNewVehicle({ name: '', plate: '', status: 'Active' });
   };
 
-  const handleAddVehicle = () => {
-    setEditingVehicle(null);
-    setShowVehicleForm(true);
+  const handleDelete = (id) => {
+      setVehicles(vehicles.filter(v => v.id !== id));
   };
-
-  const handleEditVehicle = (vehicle) => {
-    setEditingVehicle(vehicle);
-    setShowVehicleForm(true);
-  };
-
-  const handleSaveVehicle = async (vehicleData) => {
-    try {
-      if (editingVehicle) {
-        // Update existing vehicle
-        await vehicleService.updateVehicle(editingVehicle.id, vehicleData);
-        console.log('Vehicle updated successfully');
-      } else {
-        // Create new vehicle
-        await vehicleService.createVehicle(vehicleData);
-        console.log('Vehicle created successfully');
-      }
-      
-      // Close modal and refresh list
-      setShowVehicleForm(false);
-      setEditingVehicle(null);
-      fetchVehicles();
-      
-    } catch (error) {
-      console.error('Failed to save vehicle:', error);
-      alert(error.message || 'Failed to save vehicle');
-    }
-  };
-
-  const handleCloseForm = () => {
-    setShowVehicleForm(false);
-    setEditingVehicle(null);
-  };
-
-  // Mock metrics data
-  const mockMetrics = {
-    activeVehicles: 28,
-    totalFleetSize: 35,
-    activeTrips: 12,
-    completedTrips: 156,
-    activeDrivers: 28,
-    weeklyRevenue: 12450,
-    utilizationRate: 80,
-    fuelEfficiency: 8.5,
-    maintenanceDue: 3
-  };
-
-  const displayMetrics = metrics || mockMetrics;
-
-  const MetricCard = ({ icon, title, value, subtitle, color = 'blue', trend }) => {
-    const colorClasses = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      purple: 'bg-purple-500',
-      orange: 'bg-orange-500',
-      red: 'bg-red-500',
-      yellow: 'bg-yellow-500'
-    };
-
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className={`p-3 rounded-full ${colorClasses[color]} bg-opacity-10`}>
-              <div className={`${colorClasses[color]} text-white text-xl`}>
-                {icon}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">{title}</p>
-              <p className="text-2xl font-bold text-gray-900">{value}</p>
-              <p className="text-sm text-gray-500">{subtitle}</p>
-            </div>
-          </div>
-          {trend && (
-            <div className={`text-sm font-medium ${
-              trend > 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {trend > 0 ? '+' : ''}{trend}%
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const VehicleCard = ({ vehicle, onEdit }) => {
-    const getStatusColor = (status) => {
-      switch (status) {
-        case 'active': return 'bg-green-100 text-green-800';
-        case 'idle': return 'bg-yellow-100 text-yellow-800';
-        case 'maintenance': return 'bg-red-100 text-red-800';
-        default: return 'bg-gray-100 text-gray-800';
-      }
-    };
-
-    const getFuelColor = (percentage) => {
-      if (percentage > 50) return 'bg-green-500';
-      if (percentage > 25) return 'bg-yellow-500';
-      return 'bg-red-500';
-    };
-
-    return (
-      <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">{vehicle.name}</h3>
-            <p className="text-sm text-gray-600">{vehicle.type}</p>
-          </div>
-          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(vehicle.status)}`}>
-            {vehicle.status}
-          </span>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Driver:</span>
-            <span className="font-medium">{vehicle.driver}</span>
-          </div>
-          
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Location:</span>
-            <span className="font-medium flex items-center">
-              <FaMapMarkerAlt className="mr-1" />
-              {vehicle.location}
-            </span>
-          </div>
-
-          {vehicle.fuel !== null && (
-            <div>
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-gray-600">Fuel:</span>
-                <span className="font-medium">{vehicle.fuel}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full ${getFuelColor(vehicle.fuel)}`}
-                  style={{ width: `${vehicle.fuel}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
-
-          {vehicle.battery !== null && (
-            <div>
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-gray-600">Battery:</span>
-                <span className="font-medium">{vehicle.battery}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full ${getFuelColor(vehicle.battery)}`}
-                  style={{ width: `${vehicle.battery}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Next Maintenance:</span>
-            <span className="font-medium">{vehicle.nextMaintenance}</span>
-          </div>
-
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Revenue:</span>
-            <span className="font-medium text-green-600">${vehicle.revenue}</span>
-          </div>
-        </div>
-
-        <div className="mt-4 flex space-x-2">
-          <button className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
-            <FaEye className="inline mr-1" />
-            View
-          </button>
-          <button onClick={() => onEdit(vehicle)} className="flex-1 px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors">
-            <FaEdit className="inline mr-1" />
-            Edit
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesSearch = vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.type.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Fleet Manager Dashboard</h1>
-              <p className="text-gray-600">Manage your vehicles and operations</p>
+    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans p-8">
+      
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-8 border-b border-gray-200 pb-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+             <FaTruck className="text-blue-600"/> Fleet Command Center
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">Real-time Telemetry • Load Optimization • Continuous Simulation</p>
+        </div>
+        <div className="flex gap-4">
+            <div className="bg-white px-4 py-2 rounded shadow-sm border border-gray-200 flex items-center gap-3">
+                <div className="bg-green-100 p-2 rounded-full text-green-600"><FaSatellite className="animate-pulse"/></div>
+                <div>
+                    <span className="text-gray-500 text-xs uppercase font-bold block">Live Signal</span> 
+                    <div className="text-sm font-bold text-gray-800">Connected</div>
+                </div>
             </div>
-            <button onClick={handleAddVehicle} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-              <FaPlus className="inline mr-2" />
-              Add Vehicle
-            </button>
-          </div>
+            <div className="bg-white px-4 py-2 rounded shadow-sm border border-gray-200">
+                <span className="text-gray-500 text-xs uppercase font-bold">Active Fleet</span> 
+                <div className="text-2xl font-bold text-blue-600">{vehicles.filter(v => v.status === 'Active').length}</div>
+            </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <MetricCard
-            icon={<FaTruck />}
-            title="Active Vehicles"
-            value={displayMetrics.activeVehicles}
-            subtitle={`of ${displayMetrics.totalFleetSize} total`}
-            color="green"
-            trend={5.2}
-          />
-          <MetricCard
-            icon={<FaRoute />}
-            title="Active Trips"
-            value={displayMetrics.activeTrips}
-            subtitle="Currently in progress"
-            color="blue"
-          />
-          <MetricCard
-            icon={<FaCheckCircle />}
-            title="Completed Trips"
-            value={displayMetrics.completedTrips}
-            subtitle="This month"
-            color="purple"
-            trend={12.8}
-          />
-          <MetricCard
-            icon={<FaUsers />}
-            title="Active Drivers"
-            value={displayMetrics.activeDrivers}
-            subtitle="Currently working"
-            color="orange"
-          />
-          <MetricCard
-            icon={<FaDollarSign />}
-            title="Weekly Revenue"
-            value={`$${displayMetrics.weeklyRevenue.toLocaleString()}`}
-            subtitle="Last 7 days"
-            color="green"
-            trend={8.5}
-          />
-          <MetricCard
-            icon={<FaWrench />}
-            title="Maintenance Due"
-            value={displayMetrics.maintenanceDue}
-            subtitle="Vehicles need service"
-            color="red"
-          />
-        </div>
-
-        {/* Vehicles Section */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">Vehicle Fleet</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* LEFT COLUMN */}
+        <div className="lg:col-span-2 space-y-8">
             
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-              {/* Search */}
-              <div className="relative">
-                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search vehicles..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              {/* Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="idle">Idle</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
-
-              {/* Export Button */}
-              <button className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors">
-                <FaDownload className="inline mr-2" />
-                Export
-              </button>
+            {/* ➤ MODULE 3: LOAD OPTIMIZATION */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-lg font-bold flex items-center gap-2 text-gray-800">
+                            <FaBalanceScale className="text-indigo-600"/> Load Optimization
+                        </h2>
+                        <p className="text-xs text-gray-400">AI Capacity Redistribution</p>
+                    </div>
+                    <button 
+                        onClick={handleLoadBalance}
+                        disabled={isOptimizing}
+                        className={`px-4 py-2 rounded-lg font-bold text-white shadow-md flex items-center gap-2 ${isOptimizing ? 'bg-gray-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                    >
+                        {isOptimizing ? "Optimizing..." : <><FaMagic /> Auto-Balance</>}
+                    </button>
+                </div>
+                {/* Visual Load Bars */}
+                <div className="space-y-4">
+                    {vehicles.slice(0, 3).map(v => (
+                        <div key={v.id} className="grid grid-cols-12 gap-4 items-center">
+                            <div className="col-span-3 text-sm font-medium text-gray-700">{v.name}</div>
+                            <div className="col-span-7">
+                                <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                                    <div 
+                                        className={`h-full transition-all duration-1000 ${v.capacity > 90 ? 'bg-red-500' : 'bg-green-500'}`} 
+                                        style={{ width: `${v.capacity}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                            <div className="col-span-2 text-xs font-mono text-gray-500 text-right">{v.capacity}%</div>
+                        </div>
+                    ))}
+                </div>
             </div>
-          </div>
 
-          {/* Vehicles Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {(filteredVehicles || []).map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} onEdit={handleEditVehicle} />
-            ))}
-          </div>
-
-          {(filteredVehicles || []).length === 0 && (
-            <div className="text-center py-12">
-              <FaTruck className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No vehicles found</h3>
-              <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+            {/* ➤ MODULE 2 & 4: VEHICLE LIST & TELEMETRY */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-gray-700">Live Telemetry</h3>
+                    <button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 shadow-sm">
+                        <FaPlus /> Add Vehicle
+                    </button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold">
+                            <tr>
+                                <th className="p-4">Vehicle</th>
+                                <th className="p-4">Diagnostics (Mod 4)</th>
+                                <th className="p-4">Status</th>
+                                <th className="p-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {vehicles.map(v => (
+                                <tr key={v.id} className="hover:bg-blue-50 transition-colors">
+                                    <td className="p-4">
+                                        <div className="font-bold text-gray-800">{v.name}</div>
+                                        <div className="text-xs text-gray-500 font-mono">{v.plate}</div>
+                                        {/* Speed Indicator */}
+                                        <div className={`mt-1 text-xs font-bold flex items-center gap-1 ${v.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>
+                                            <FaTachometerAlt /> {v.speed} km/h
+                                        </div>
+                                    </td>
+                                    {/* Module 4: Health Stats */}
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-4 text-sm">
+                                            <div className="flex items-center gap-1" title="Battery Level">
+                                                <FaBatteryThreeQuarters className={`${v.battery < 20 ? 'text-red-500' : 'text-green-500'}`} />
+                                                <span className="font-mono">{Math.floor(v.battery)}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-1" title="Engine Temp">
+                                                <FaThermometerHalf className={`${v.temp > 100 ? 'text-red-500 animate-pulse' : 'text-blue-500'}`} />
+                                                <span className="font-mono">{Math.floor(v.temp)}°C</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
+                                            v.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                            v.status === 'Maintenance' ? 'bg-red-50 text-red-700 border-red-200' : 
+                                            'bg-gray-100 text-gray-600 border-gray-200'
+                                        }`}>
+                                            {v.status}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <button onClick={() => setCurrentMapLocation(v.location)} className="text-blue-500 hover:text-blue-700 mr-3 p-2 hover:bg-blue-100 rounded" title="Locate"><FaMapMarkedAlt /></button>
+                                        <button onClick={() => handleDelete(v.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-100 rounded" title="Delete"><FaTrash /></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-          )}
         </div>
+
+        {/* RIGHT COLUMN: MAP */}
+        <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[600px] sticky top-8">
+                <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                    <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                        <FaMapMarkedAlt className="text-blue-500" /> Live Tracking
+                    </h3>
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded animate-pulse">● Live Updates</span>
+                </div>
+                <div className="flex-1 relative bg-gray-100">
+                    <UserMap location={currentMapLocation} />
+                </div>
+                {/* Selected Vehicle Detail Card */}
+                <div className="p-4 bg-white border-t border-gray-200">
+                    <div className="text-xs font-bold text-gray-400 uppercase mb-2">GPS Coordinates</div>
+                    <div className="font-mono text-sm text-gray-800">
+                        Lat: {currentMapLocation.lat.toFixed(5)} <br/>
+                        Lng: {currentMapLocation.lng.toFixed(5)}
+                    </div>
+                </div>
+            </div>
+        </div>
+
       </div>
 
-      {/* Vehicle Form Modal */}
-      {showVehicleForm && (
-        <VehicleForm
-          vehicle={editingVehicle}
-          onSave={handleSaveVehicle}
-          onCancel={handleCloseForm}
-        />
+      {/* ADD VEHICLE MODAL */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md border border-gray-200">
+                <h2 className="text-xl font-bold mb-4 text-gray-800">Add New Vehicle</h2>
+                <div className="space-y-4">
+                    <input className="w-full bg-gray-50 border border-gray-300 p-3 rounded text-gray-800 outline-none focus:border-blue-500" placeholder="Vehicle Name" value={newVehicle.name} onChange={e => setNewVehicle({...newVehicle, name: e.target.value})} />
+                    <input className="w-full bg-gray-50 border border-gray-300 p-3 rounded text-gray-800 outline-none focus:border-blue-500" placeholder="License Plate" value={newVehicle.plate} onChange={e => setNewVehicle({...newVehicle, plate: e.target.value})} />
+                    <select className="w-full bg-gray-50 border border-gray-300 p-3 rounded text-gray-800 outline-none" value={newVehicle.status} onChange={e => setNewVehicle({...newVehicle, status: e.target.value})}>
+                        <option value="Active">Active</option>
+                        <option value="Maintenance">Maintenance</option>
+                        <option value="Idle">Idle</option>
+                    </select>
+                </div>
+                <div className="flex gap-3 mt-6">
+                    <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleSaveVehicle} className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow">Save</button>
+                </div>
+            </div>
+        </div>
       )}
+
     </div>
   );
 };
 
-export default FleetManagerDashboard;
+export default FleetManagerDashboard;   
