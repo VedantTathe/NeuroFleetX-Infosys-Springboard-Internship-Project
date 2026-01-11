@@ -36,7 +36,7 @@ const AdminDashboard = () => {
         navigate('/admin/vehicles');
         break;
       case 'bookings':
-        navigate('/admin/bookings');
+        navigate('/admin/booking');
         break;
       case 'maintenance':
         navigate('/admin/maintenance');
