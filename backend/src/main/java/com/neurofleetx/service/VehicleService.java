@@ -4,6 +4,8 @@ import com.neurofleetx.entity.Vehicle;
 import com.neurofleetx.repository.VehicleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -15,10 +17,11 @@ public class VehicleService {
     private VehicleRepository vehicleRepository;
 
     // Create a new vehicle
+    @Transactional
     public Vehicle createVehicle(Vehicle vehicle) {
         try {
-            vehicle.setCreatedAt(java.time.LocalDateTime.now().toString());
-            vehicle.setUpdatedAt(java.time.LocalDateTime.now().toString());
+            vehicle.setCreatedAt(LocalDateTime.now());
+            vehicle.setUpdatedAt(LocalDateTime.now());
             
             // Set default values if not provided
             if (vehicle.getCurrentFuelLevel() == null) {
@@ -99,7 +102,7 @@ public class VehicleService {
             vehicle.setColor(vehicleDetails.getColor());
             vehicle.setBasePricePerKm(vehicleDetails.getBasePricePerKm());
             vehicle.setIsAvailable(vehicleDetails.getIsAvailable());
-            vehicle.setUpdatedAt(java.time.LocalDateTime.now().toString());
+            vehicle.setUpdatedAt(LocalDateTime.now());
             return vehicleRepository.save(vehicle);
         }
         throw new RuntimeException("Vehicle not found with ID: " + id);
@@ -111,7 +114,7 @@ public class VehicleService {
         if (vehicleOpt.isPresent()) {
             Vehicle vehicle = vehicleOpt.get();
             vehicle.setIsAvailable(isAvailable);
-            vehicle.setUpdatedAt(java.time.LocalDateTime.now().toString());
+            vehicle.setUpdatedAt(LocalDateTime.now());
             return Optional.of(vehicleRepository.save(vehicle));
         }
         return Optional.empty();

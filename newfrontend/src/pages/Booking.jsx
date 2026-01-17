@@ -15,55 +15,61 @@ const Booking = () => {
     evPreference: false
   });
   const [recommendations, setRecommendations] = useState([]);
+  const [availableVehicles, setAvailableVehicles] = useState([]);
+  const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showRecommendations, setShowRecommendations] = useState(false);
 
-  // Mock available vehicles (fallback)
-  const availableVehicles = [
-    {
-      id: 1,
-      type: 'sedan',
-      name: 'Toyota Camry',
-      plate: 'ABC-123',
-      rating: 4.5,
-      pricePerKm: 2.5,
-      features: ['AC', 'Music System', 'GPS'],
-      available: true,
-      driver: 'John Doe',
-      driverRating: 4.8
-    },
-    {
-      id: 2,
-      type: 'suv',
-      name: 'Honda CR-V',
-      plate: 'XYZ-789',
-      rating: 4.7,
-      pricePerKm: 3.2,
-      features: ['AC', 'Music System', 'GPS', 'Leather Seats'],
-      available: true,
-      driver: 'Jane Smith',
-      driverRating: 4.9
-    },
-    {
-      id: 3,
-      type: 'ev',
-      name: 'Tesla Model 3',
-      plate: 'EV-456',
-      rating: 4.9,
-      pricePerKm: 2.8,
-      features: ['AC', 'Autopilot', 'Music System', 'GPS'],
-      available: true,
-      driver: 'Mike Johnson',
-      driverRating: 4.7
-    }
-  ];
+  // Fetch available vehicles from backend
+  useEffect(() => {
+    const fetchAvailableVehicles = async () => {
+      try {
+        const response = await apiClient.get('/vehicles');
+        if (response.data) {
+          const vehicles = response.data.map(v => ({
+            id: v.id,
+            type: v.type.toLowerCase(),
+            name: `${v.make} ${v.model}`,
+            plate: v.licensePlate,
+            rating: v.healthScore || 4.5,
+            pricePerKm: v.basePricePerKm,
+            features: v.fuelType ? [v.fuelType] : ['AC'],
+            available: v.isAvailable,
+            passengerCapacity: v.passengerCapacity || 4,
+            driver: v.driver ? `${v.driver.name} (Rating: ${v.driverRating || 'N/A'})` : 'Unassigned'
+          }));
+          setAvailableVehicles(vehicles);
+        }
+      } catch (error) {
+        console.error('Error fetching vehicles:', error);
+        setAvailableVehicles([]);
+      }
+    };
+
+    fetchAvailableVehicles();
+  }, []);
 
   useEffect(() => {
-    // Set default date to today
+    // Set default date to today and time to 2 hours from now
     const today = new Date().toISOString().split('T')[0];
-    setBookingData(prev => ({ ...prev, date: today }));
-  }, []);
+    const now = new Date();
+    now.setHours(now.getHours() + 2);
+    const defaultTime = now.toTimeString().slice(0, 5);
+    
+    setBookingData(prev => ({ 
+      ...prev, 
+      date: today,
+      time: defaultTime
+    }));
+    
+    // Auto-show available vehicles when they're loaded
+    if (availableVehicles.length > 0) {
+      const available = availableVehicles.filter(vehicle => vehicle.available);
+      setRecommendations(available);
+      setShowRecommendations(true);
+    }
+  }, [availableVehicles]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -136,7 +142,7 @@ const Booking = () => {
 
     try {
       const criteria = {
-        vehicleType: bookingData.vehicleType || null,
+        vehicleType: bookingData.vehicleType ? bookingData.vehicleType.toUpperCase() : null,
         passengerCount: parseInt(bookingData.passengers) || 1,
         evPreference: bookingData.evPreference || false
       };
@@ -169,16 +175,23 @@ const Booking = () => {
       // Fallback to local available vehicles if backend fails or returns empty
       if (recommendations.length === 0) {
         recommendations = availableVehicles.filter(vehicle => {
-          if (bookingData.vehicleType && vehicle.type !== bookingData.vehicleType.toLowerCase()) {
+          // Check if vehicle is available
+          if (!vehicle.available) {
             return false;
           }
+          
+          // Check passenger capacity
+          const vehicleCapacity = vehicle.passengerCapacity || 4;
+          if (vehicleCapacity < parseInt(bookingData.passengers || 1)) {
+            return false;
+          }
+          
+          // Check EV preference
           if (bookingData.evPreference && vehicle.type !== 'ev') {
             return false;
           }
-          if (vehicle.passengerCapacity < parseInt(bookingData.passengers || 1)) {
-            return false;
-          }
-          return vehicle.available;
+          
+          return true;
         });
       }
 
@@ -207,9 +220,15 @@ const Booking = () => {
       }
 
       // Combine date and time for scheduled pickup
-      const scheduledDateTime = bookingData.date && bookingData.time 
-        ? `${bookingData.date}T${bookingData.time}:00`
-        : new Date().toISOString();
+      let scheduledDateTime;
+      if (bookingData.date && bookingData.time) {
+        scheduledDateTime = new Date(`${bookingData.date}T${bookingData.time}`).toISOString();
+      } else {
+        // Use current time + 2 hours as default
+        const now = new Date();
+        now.setHours(now.getHours() + 2);
+        scheduledDateTime = now.toISOString();
+      }
 
       const bookingPayload = {
         customerId: user.id,
@@ -342,13 +361,19 @@ const Booking = () => {
                 <select
                   name="vehicleType"
                   value={bookingData.vehicleType}
-                  onChange={handleInputChange}
+                  onChange={(e) => {
+                    const selectedVehicleId = e.target.value;
+                    setSelectedVehicle(selectedVehicleId);
+                    handleInputChange(e);
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Any Vehicle</option>
-                  <option value="sedan">Sedan</option>
-                  <option value="suv">SUV</option>
-                  <option value="ev">Electric Vehicle</option>
+                  <option value="">Select Vehicle</option>
+                  {availableVehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.name} ({vehicle.plate})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -406,6 +431,31 @@ const Booking = () => {
             
             {showRecommendations ? (
               <div className="space-y-4">
+                {selectedVehicle ? (
+                  <div key={selectedVehicle} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition duration-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{availableVehicles.find(v => v.id === selectedVehicle)?.name || 'Selected Vehicle'}</h3>
+                        <p className="text-sm text-gray-600">{availableVehicles.find(v => v.id === selectedVehicle)?.plate || ''}</p>
+                      </div>
+                      <div className="text-right">
+                        <button 
+                          onClick={() => setSelectedVehicle(null)}
+                          className="text-gray-400 hover:text-gray-600 p-1"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="text-center text-gray-500">
+                      <FaCar className="text-4xl mb-2" />
+                      <p>Select a vehicle to see details</p>
+                    </div>
+                  </div>
+                )}
                 {recommendations.length > 0 ? (
                   recommendations.map((vehicle) => (
                     <div key={vehicle.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition duration-200">

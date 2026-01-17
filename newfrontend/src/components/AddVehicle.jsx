@@ -11,10 +11,9 @@ const AddVehicle = ({ onSave, onCancel, isEmbedded = false }) => {
 
   // Initial Form State
   const [formData, setFormData] = useState({
-    make: '', model: '', type: 'sedan', licensePlate: '', status: 'active',
-    gpsDeviceId: '', protocol: 'MQTT',
-    maxEngineTemp: 105, minTirePressure: 32,
-    isSimulating: false // This flag tells the dashboard to start moving it on the map
+    make: '', model: '', type: 'SEDAN', licensePlate: '', 
+    passengerCapacity: 4, year: 2023, color: '', basePricePerKm: 2.5,
+    isAvailable: true
   });
 
   // --- MODULE 2: SIMULATION PREVIEW ---
@@ -40,7 +39,7 @@ const AddVehicle = ({ onSave, onCancel, isEmbedded = false }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     // Pass the final data back to the Dashboard
-    onSave({ ...formData, isSimulating }); 
+    onSave(formData); 
   };
 
   // Helper for Tabs
@@ -103,12 +102,20 @@ const AddVehicle = ({ onSave, onCancel, isEmbedded = false }) => {
                 <input type="text" name="licensePlate" value={formData.licensePlate} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="XX-00-YY-0000" required />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
-                <select name="status" value={formData.status} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                  <option value="active">Active</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="idle">Idle</option>
-                </select>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Passenger Capacity</label>
+                <input type="number" name="passengerCapacity" value={formData.passengerCapacity} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="4" min="1" max="8" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Year</label>
+                <input type="number" name="year" value={formData.year} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="2023" min="2000" max="2024" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Color</label>
+                <input type="text" name="color" value={formData.color} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="White" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Base Price per KM</label>
+                <input type="number" step="0.1" name="basePricePerKm" value={formData.basePricePerKm} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="2.5" min="0.1" />
               </div>
             </div>
           )}

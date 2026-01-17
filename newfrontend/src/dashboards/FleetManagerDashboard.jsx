@@ -1,42 +1,50 @@
-
 import React, { useState, useEffect } from 'react';
 import UserMap from '../components/UserMap';
+import AddVehicle from '../components/AddVehicle';
+import BookingManagement from '../components/BookingManagement';
 import { optimizeFleetLoad } from '../services/AiEngine';
 import { 
   FaTruck, FaMapMarkedAlt, FaMagic, FaPlus, FaTrash, FaBalanceScale, 
   FaBatteryThreeQuarters, FaThermometerHalf, FaTachometerAlt, FaSatellite 
 } from 'react-icons/fa';
 
-const FleetManagerDashboard = () => {
-  // --- INITIAL DATA ---
-  const MOCK_VEHICLES = [
-    { 
-      id: 1, name: "Tesla Semi A1", plate: "MH-12-AB-1234", status: "Active", 
-      capacity: 95, location: { lat: 18.5204, lng: 73.8567 }, 
-      battery: 88, temp: 65, speed: 45 
-    },
-    { 
-      id: 2, name: "Tata Ace X2", plate: "MH-14-XY-9876", status: "Active", 
-      capacity: 15, location: { lat: 19.0760, lng: 72.8777 }, 
-      battery: 45, temp: 82, speed: 30 
-    },
-    { 
-      id: 3, name: "Eicher Pro Z3", plate: "KA-01-ZZ-5555", status: "Maintenance", 
-      capacity: 0, location: { lat: 12.9716, lng: 77.5946 }, 
-      battery: 12, temp: 110, speed: 0 
-    },
-    { 
-      id: 4, name: "Ashok Leyland", plate: "TS-09-QQ-1111", status: "Idle", 
-      capacity: 0, location: { lat: 17.3850, lng: 78.4867 }, 
-      battery: 100, temp: 40, speed: 0 
-    }
-  ];
+// API service
+const API_BASE = 'http://localhost:5000/api';
 
-  const [vehicles, setVehicles] = useState(MOCK_VEHICLES);
+const FleetManagerDashboard = () => {
+  const [vehicles, setVehicles] = useState([]);
   const [currentMapLocation, setCurrentMapLocation] = useState({ lat: 20.5937, lng: 78.9629 });
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [newVehicle, setNewVehicle] = useState({ name: '', plate: '', status: 'Active' });
+
+  // --- FETCH VEHICLES FROM BACKEND ---
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
+  const fetchVehicles = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/vehicles`);
+      if (response.ok) {
+        const data = await response.json();
+        // Transform backend data to frontend format
+        const transformedVehicles = data.map(v => ({
+          id: v.id,
+          name: `${v.make} ${v.model}`,
+          plate: v.licensePlate,
+          status: v.isAvailable ? 'Active' : 'Idle',
+          capacity: v.passengerCapacity,
+          location: { lat: v.currentLatitude || 18.5204, lng: v.currentLongitude || 73.8567 },
+          battery: v.batteryLevel || 100,
+          temp: 60,
+          speed: 0
+        }));
+        setVehicles(transformedVehicles);
+      }
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+    }
+  };
 
   // --- AUTOMATIC SIMULATION ENGINE (RUNS ALWAYS) ---
   useEffect(() => {
@@ -84,18 +92,45 @@ const FleetManagerDashboard = () => {
   };
 
   // --- CRUD ACTIONS ---
-  const handleSaveVehicle = () => {
-      // New vehicles are automatically picked up by the useEffect loop above
-      const vehicle = {
-          ...newVehicle,
-          id: Date.now(),
-          capacity: 0,
-          location: { lat: 18.5204, lng: 73.8567 }, // Default start
-          battery: 100, temp: 60, speed: 0
+  const handleSaveVehicle = async (vehicleData) => {
+    try {
+      // Transform frontend data to backend format
+      const backendVehicle = {
+        make: vehicleData.make || 'Unknown',
+        model: vehicleData.model || 'Unknown',
+        licensePlate: vehicleData.licensePlate || `AUTO-${Date.now()}`,
+        type: vehicleData.type || 'SEDAN',
+        passengerCapacity: vehicleData.passengerCapacity || 4,
+        year: vehicleData.year || 2023,
+        color: vehicleData.color || 'White',
+        basePricePerKm: vehicleData.basePricePerKm || 2.5,
+        isAvailable: true
       };
-      setVehicles([...vehicles, vehicle]);
-      setShowModal(false);
-      setNewVehicle({ name: '', plate: '', status: 'Active' });
+
+      const response = await fetch(`${API_BASE}/vehicles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(backendVehicle)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Vehicle created successfully:', result);
+        // Refresh vehicles list
+        fetchVehicles();
+        setShowModal(false);
+        alert('✅ Vehicle added successfully!');
+      } else {
+        const error = await response.text();
+        console.error('Error creating vehicle:', error);
+        alert('❌ Failed to add vehicle: ' + error);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Failed to add vehicle: ' + error.message);
+    }
   };
 
   const handleDelete = (id) => {
@@ -168,6 +203,9 @@ const FleetManagerDashboard = () => {
                     ))}
                 </div>
             </div>
+
+            {/* ➤ BOOKING MANAGEMENT */}
+            <BookingManagement />
 
             {/* ➤ MODULE 2 & 4: VEHICLE LIST & TELEMETRY */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -262,19 +300,11 @@ const FleetManagerDashboard = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md border border-gray-200">
                 <h2 className="text-xl font-bold mb-4 text-gray-800">Add New Vehicle</h2>
-                <div className="space-y-4">
-                    <input className="w-full bg-gray-50 border border-gray-300 p-3 rounded text-gray-800 outline-none focus:border-blue-500" placeholder="Vehicle Name" value={newVehicle.name} onChange={e => setNewVehicle({...newVehicle, name: e.target.value})} />
-                    <input className="w-full bg-gray-50 border border-gray-300 p-3 rounded text-gray-800 outline-none focus:border-blue-500" placeholder="License Plate" value={newVehicle.plate} onChange={e => setNewVehicle({...newVehicle, plate: e.target.value})} />
-                    <select className="w-full bg-gray-50 border border-gray-300 p-3 rounded text-gray-800 outline-none" value={newVehicle.status} onChange={e => setNewVehicle({...newVehicle, status: e.target.value})}>
-                        <option value="Active">Active</option>
-                        <option value="Maintenance">Maintenance</option>
-                        <option value="Idle">Idle</option>
-                    </select>
-                </div>
-                <div className="flex gap-3 mt-6">
-                    <button onClick={() => setShowModal(false)} className="flex-1 py-2 border border-gray-300 rounded text-gray-600 hover:bg-gray-50">Cancel</button>
-                    <button onClick={handleSaveVehicle} className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow">Save</button>
-                </div>
+                <AddVehicle 
+                  onSave={handleSaveVehicle}
+                  onCancel={() => setShowModal(false)}
+                  isEmbedded={true}
+                />
             </div>
         </div>
       )}

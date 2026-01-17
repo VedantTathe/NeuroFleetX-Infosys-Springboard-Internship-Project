@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/bookings")
-@CrossOrigin(origins = "http://localhost:5173", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
+@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class BookingController {
 
     @Autowired
@@ -237,15 +237,18 @@ public class BookingController {
         
         try {
             // Extract and validate criteria
-            String vehicleType = extractString(criteria, "vehicleType", "Vehicle type");
+            String vehicleType = extractString(criteria, "vehicleType");
             Integer passengerCount = extractInteger(criteria, "passengerCount", 1);
             Boolean evPreference = criteria.get("evPreference") != null ? 
                 Boolean.valueOf(criteria.get("evPreference").toString()) : false;
+            
+            System.out.println("Extracted criteria - vehicleType: " + vehicleType + ", passengerCount: " + passengerCount + ", evPreference: " + evPreference);
             
             // Validate passenger count
             if (passengerCount < 1 || passengerCount > 8) {
                 Map<String, String> error = new HashMap<>();
                 error.put("message", "Passenger count must be between 1 and 8");
+                System.out.println("BOOKING CREATION FAILED: Passenger count validation failed - " + passengerCount);
                 return ResponseEntity.badRequest().body(error);
             }
             
@@ -255,11 +258,13 @@ public class BookingController {
                 if (!normalizedType.equals("SEDAN") && !normalizedType.equals("SUV") && !normalizedType.equals("EV")) {
                     Map<String, String> error = new HashMap<>();
                     error.put("message", "Invalid vehicle type. Must be one of: SEDAN, SUV, EV");
+                    System.out.println("BOOKING CREATION FAILED: Invalid vehicle type - " + normalizedType);
                     return ResponseEntity.badRequest().body(error);
                 }
                 vehicleType = normalizedType;
             }
             
+            System.out.println("Calling vehicleService.getVehicleRecommendations...");
             List<Vehicle> recommendations = vehicleService.getVehicleRecommendations(vehicleType, passengerCount, evPreference);
             System.out.println("RECOMMENDATIONS FOUND: " + recommendations.size() + " vehicles");
             
@@ -269,17 +274,95 @@ public class BookingController {
             response.put("count", recommendations.size());
             response.put("vehicles", recommendations);
             
+            System.out.println("Sending response: " + response);
             return ResponseEntity.ok(response);
             
         } catch (NumberFormatException e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", "Invalid number format: " + e.getMessage());
             System.out.println("RECOMMENDATIONS FAILED: Number format error - " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(error);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", "Failed to get vehicle recommendations: " + e.getMessage());
             System.out.println("RECOMMENDATIONS ERROR: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    // Confirm booking (change status from PENDING to CONFIRMED)
+    @PutMapping("/{bookingId}/confirm")
+    public ResponseEntity<?> confirmBooking(@PathVariable Long bookingId) {
+        System.out.println("=== CONFIRM BOOKING REQUEST ===");
+        System.out.println("Booking ID: " + bookingId);
+        
+        try {
+            Booking booking = bookingService.confirmBooking(bookingId);
+            System.out.println("BOOKING CONFIRMED SUCCESSFULLY: " + bookingId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Booking confirmed successfully");
+            response.put("booking", booking);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Failed to confirm booking: " + e.getMessage());
+            System.out.println("CONFIRM BOOKING ERROR: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    // Cancel booking (change status to CANCELLED)
+    @PutMapping("/{bookingId}/cancel")
+    public ResponseEntity<?> cancelBooking(@PathVariable Long bookingId) {
+        System.out.println("=== CANCEL BOOKING REQUEST ===");
+        System.out.println("Booking ID: " + bookingId);
+        
+        try {
+            Booking booking = bookingService.cancelBooking(bookingId);
+            System.out.println("BOOKING CANCELLED SUCCESSFULLY: " + bookingId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Booking cancelled successfully");
+            response.put("booking", booking);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Failed to cancel booking: " + e.getMessage());
+            System.out.println("CANCEL BOOKING ERROR: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    // Get bookings by status
+    @GetMapping(params = "status")
+    public ResponseEntity<?> getBookingsByStatus(@RequestParam String status) {
+        System.out.println("=== GET BOOKINGS BY STATUS REQUEST ===");
+        System.out.println("Status: " + status);
+        
+        try {
+            List<Booking> bookings = bookingService.getBookingsByStatus(status);
+            System.out.println("FOUND " + bookings.size() + " BOOKINGS WITH STATUS: " + status);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Bookings retrieved successfully");
+            response.put("bookings", bookings);
+            response.put("count", bookings.size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Failed to fetch bookings by status: " + e.getMessage());
+            System.out.println("BOOKINGS BY STATUS ERROR: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.badRequest().body(error);
         }

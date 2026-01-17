@@ -1,9 +1,12 @@
 package com.neurofleetx.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "vehicles")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Vehicle {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,10 +68,10 @@ public class Vehicle {
     private Double currentLongitude;
 
     @Column(name = "created_at")
-    private String createdAt;
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
-    private String updatedAt;
+    private LocalDateTime updatedAt;
 
     // Constructors
     public Vehicle() {}
@@ -88,8 +91,8 @@ public class Vehicle {
         this.currentFuelLevel = 100.0;
         this.batteryLevel = type.equals("EV") ? 100.0 : null;
         this.healthScore = 95.0;
-        this.createdAt = java.time.LocalDateTime.now().toString();
-        this.updatedAt = java.time.LocalDateTime.now().toString();
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     // Getters and Setters
@@ -150,9 +153,9 @@ public class Vehicle {
     public Double getCurrentLongitude() { return currentLongitude; }
     public void setCurrentLongitude(Double currentLongitude) { this.currentLongitude = currentLongitude; }
 
-    public String getCreatedAt() { return createdAt; }
-    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public String getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }
